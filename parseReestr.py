@@ -2,15 +2,21 @@ import fitz  # this is pymupdf
 import sys
 import csv
 import re
+from transliterate import translit
+from progress.bar import Bar
+
 
 VALUE_INDX_IN_BLOCK = 4
 FLATS_BY_ENTRANCE = [321, 598, 902, 1223]
 
 srcFileName = sys.argv[1]
-
+domovoiFileName = None
+if len(sys.argv) > 2:
+    domovoiFileName = sys.argv[2]
 
 allBlocks = []
 allUsers = {}
+allDomovoiUsers = []
 
 def getValueFromBlock(targetText, startIndx):      
     i = startIndx
@@ -49,16 +55,15 @@ def getObjectArea(object):
         return float(areaMatch.group(1))
     return float(0)
 
-def fixFlatNum(entrance, flatNum):
+def fixFlatNum(entrance, flatNum, forceOldStyle = True):
     #if defined wrong entrance, fix it
     if entrance == 1 and flatNum > FLATS_BY_ENTRANCE[0]:
         while FLATS_BY_ENTRANCE[entrance] <= flatNum:
             entrance += 1
     #if we found num in "old" style, convert it to new style
-    if entrance > 1 and flatNum < FLATS_BY_ENTRANCE[entrance - 1]:
-        flatNum += FLATS_BY_ENTRANCE[entrance - 2]
-    #dont know why, but all flats num increased by one
-    flatNum += 1
+    if (entrance > 1 and flatNum < FLATS_BY_ENTRANCE[entrance - 2]) or forceOldStyle:
+        flatNum += FLATS_BY_ENTRANCE[entrance - 2] if entrance > 1 else 0        
+        flatNum += 1 #dont know why, but all flats num increased by one
     return entrance, flatNum
 
 def getFlatInfo(object):
@@ -71,6 +76,33 @@ def getFlatInfo(object):
         return (fixedEntrance, flatNumNewStyle, floorNumber)
     return (None, None, None)
 
+def findFirst(a, f):
+  return next((i for i in a if f(i)), None)
+
+def matchWithDomovoiData(user):    
+    #match by flat
+    domovoiUser = findFirst(allDomovoiUsers, lambda u: u['FlatNum'] == user['FlatNum'])
+    #match by name
+    if not domovoiUser:
+        domovoiUser = matchUserWithDomovoiByName(user)
+    if domovoiUser:
+        user['PhoneNumber'] = domovoiUser['PhoneNumber']
+        user['TGLogin'] = domovoiUser['TGLogin']
+        user['FIOinTG'] = domovoiUser['FIOinTG']
+        user['CarNum'] = domovoiUser['CarNum']
+        user['ParkingNum'] = domovoiUser['ParkingNum'] 
+
+def matchByName(targetFIO, srcName, srcSurName):
+    if len(srcSurName) > 3 and srcSurName != srcName:
+        srcName = translit(srcName, 'ru')
+        srcSurName = translit(srcSurName, 'ru')
+        return srcSurName in targetFIO and srcName in targetFIO
+    return False
+
+def matchUserWithDomovoiByName(user):
+    domovoiUser = findFirst(allDomovoiUsers, lambda u: matchByName(user['FIO'], u['NameInTG'], u['SurNameInTG'])) 
+    return domovoiUser       
+
 def parseUser(startIndx):
     (curBlockIndex, agreement) = getAgreementFieldValue(startIndx)
     if curBlockIndex == -1:
@@ -79,7 +111,7 @@ def parseUser(startIndx):
     (curBlockIndex, object) = getObjectFieldValue(startIndx)
     area = getObjectArea(object)  
     (entrance, flatNum, floorNumber) = getFlatInfo(object)
-    (curBlockIndex, name) = getNameFieldValue(startIndx)
+    (curBlockIndex, name) = getNameFieldValue(startIndx)    
 
     newUser = {
         'FIO':name, 
@@ -90,7 +122,8 @@ def parseUser(startIndx):
         'Entrance' : entrance,
         'FlatNum' : flatNum,
         'FloorNumber' : floorNumber        
-        }
+        }        
+
     if name in allUsers:
         allUsers[name]['Agreements'] += newUser['Agreements']
         #fix double counting of area on assignment
@@ -98,24 +131,84 @@ def parseUser(startIndx):
             allUsers[name]['Objects'] += newUser['Objects']        
             allUsers[name]['Area'] += newUser['Area']
     else:
+        matchWithDomovoiData(newUser)
         allUsers[newUser['FIO']] = newUser
     return curBlockIndex + 1
 
+def parse_int(s, default=None):
+ if s.isdigit():
+  return int(s)
+ else:
+  return default
+
+def parseDomovoiUser(row):
+    FIO = f"{row['Имя в базе']} {row['Фамилия в базе']}"    
+    FIOinTG = f"{row['Имя в Telegram']} {row['Фамилия в Telegram']}"
+    TGLogin = row['Логин в Telegram']
+    PhoneNumber = row['Номер телефона']    
+    Entrance = parse_int(row['Подъезд'],1) 
+    FlatNum = parse_int(row['Квартира'],0)
+    (Entrance, FlatNum) = fixFlatNum(Entrance, FlatNum, False)
+    CarNum = row['Номер машины']
+    ParkingNum = row['Парковочное место']
+
+    domovoiUser = {
+                'FIO' : FIO,
+                'NameInTG' : row['Имя в Telegram'],
+                'SurNameInTG' : row['Фамилия в Telegram'],
+                'FIOinTG' : FIOinTG,
+                'TGLogin' : TGLogin,
+                'PhoneNumber' : PhoneNumber,
+                'Entrance' : Entrance,
+                'FlatNum' : FlatNum,
+                'CarNum' : CarNum,
+                'ParkingNum' : ParkingNum,                
+            }
+    
+    return domovoiUser
+
+if domovoiFileName:
+    with open(domovoiFileName, 'r') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            domovoiUser = parseDomovoiUser(row)
+            allDomovoiUsers.append(domovoiUser)
 
 with fitz.open(srcFileName) as doc:
     for page in doc:                     
         allBlocks += page.getText("blocks")
 
 curBlockIndex = 0
-
+bar = Bar('Processing', max = len(allBlocks))
 while curBlockIndex >= 0:
-    curBlockIndex = parseUser(curBlockIndex)        
+    curBlockIndex = parseUser(curBlockIndex)
+    bar.goto(curBlockIndex)    
+bar.goto(len(allBlocks))
+bar.finish()
 
 with open('result.csv', 'w') as csvfile:    
-    fieldNames = ['FIO', 'Area', 'Entrance', 'FlatNum', 'FloorNumber', 'Objects', 'Date', 'Agreements']
-    writer = csv.DictWriter(csvfile, fieldnames = fieldNames)
+    TargetHeaders = {
+        'FIO': 'Фамилия',
+        'Area': 'Общая площадь',
+        'Entrance' : 'Корпус',
+        'FlatNum' : 'Номер квартиры',
+        'FloorNumber' : 'Этаж',
+        'Date' : 'Дата договора',
+        'PhoneNumber' : 'Номер телефона',
+        'TGLogin' : 'Логин в Телеграм',
+        'CarNum' : 'Номер машины',
+        'ParkingNum' : 'Парковка',
+        'FIOinTG' : 'Имя в Телаграм',
+        'Objects' : 'Объекты в собственности',
+        'Agreements' : 'Договоры'
+    }
 
-    writer.writeheader()
+    fieldNames = ['FIO', 'Area', 'Entrance', 'FlatNum', 'FloorNumber', 
+    'Date', 'PhoneNumber', 'TGLogin', 'CarNum', 'ParkingNum', 'FIOinTG', 'Objects', 'Agreements']
+    writer = csv.DictWriter(csvfile, fieldnames = TargetHeaders)
+
+    #writer.writeheader()
+    writer.writerow(TargetHeaders)
     for key, user in allUsers.items():
         writer.writerow(user)
 

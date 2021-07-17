@@ -9,7 +9,7 @@
       "request": "launch",
       "program": "parseReestr.py",
       "console": "integratedTerminal",
-      "args": ["report_full.pdf"]
+      "args": ["report_full.pdf", "report.csv"]
     },
     {
       "name": "Parse reestr (medium)",
@@ -25,7 +25,7 @@
       "request": "launch",
       "program": "parseReestr.py",
       "console": "integratedTerminal",
-      "args": ["report_paskhalov.pdf"]
+      "args": ["report_paskhalov.pdf", "report.csv"]
     }    
   ]
 }
