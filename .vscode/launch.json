@@ -3,14 +3,29 @@
   // Hover to view descriptions of existing attributes.
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Parse reestr",
-      "type": "python",      
+  "configurations": [{
+      "name": "Parse reestr (full)",
+      "type": "python",
       "request": "launch",
       "program": "parseReestr.py",
       "console": "integratedTerminal",
-      "args": ["report_small.pdf"]
-    }
+      "args": ["report_full.pdf"]
+    },
+    {
+      "name": "Parse reestr (medium)",
+      "type": "python",
+      "request": "launch",
+      "program": "parseReestr.py",
+      "console": "integratedTerminal",
+      "args": ["report_medium.pdf"]
+    },
+    {
+      "name": "Parse reestr (paskh)",
+      "type": "python",
+      "request": "launch",
+      "program": "parseReestr.py",
+      "console": "integratedTerminal",
+      "args": ["report_paskhalov.pdf"]
+    }    
   ]
 }
