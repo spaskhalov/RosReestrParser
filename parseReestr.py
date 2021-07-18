@@ -67,7 +67,7 @@ def fixFlatNum(entrance, flatNum, forceOldStyle = True):
     return entrance, flatNum
 
 def getFlatInfo(object):
-    flatInfoMatch = re.search('.*квартира.*(\d+)-(\d+).*этаж.*?(\d+)', object, re.IGNORECASE)
+    flatInfoMatch = re.search('.*(?:квартира|студия).*(\d)-(\d+).*этаж.*?(\d+)', object, re.IGNORECASE)
     if flatInfoMatch:
         entrance = int(flatInfoMatch.group(1))
         flatNumOldStyle = int(flatInfoMatch.group(2))
