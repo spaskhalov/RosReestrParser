@@ -67,7 +67,7 @@ def fixFlatNum(entrance, flatNum, forceOldStyle = True):
     return entrance, flatNum
 
 def getFlatInfo(object):
-    flatInfoMatch = re.search('.*квартира.*(\d)-(\d+).*этаж.*?(\d+)', object, re.IGNORECASE)
+    flatInfoMatch = re.search('.*квартира.*(\d+)-(\d+).*этаж.*?(\d+)', object, re.IGNORECASE)
     if flatInfoMatch:
         entrance = int(flatInfoMatch.group(1))
         flatNumOldStyle = int(flatInfoMatch.group(2))
@@ -130,6 +130,10 @@ def parseUser(startIndx):
         if newUser['Objects'][0] not in allUsers[name]['Objects']:
             allUsers[name]['Objects'] += newUser['Objects']        
             allUsers[name]['Area'] += newUser['Area']
+        if not allUsers[name]['FlatNum'] and newUser['FlatNum']:
+            allUsers[name]['FlatNum'] = newUser['FlatNum']
+            allUsers[name]['FloorNumber'] = newUser['FloorNumber']
+            allUsers[name]['Entrance'] = newUser['Entrance']
     else:
         matchWithDomovoiData(newUser)
         allUsers[newUser['FIO']] = newUser
