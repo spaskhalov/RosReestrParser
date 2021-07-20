@@ -60,10 +60,15 @@ def fixFlatNum(entrance, flatNum, forceOldStyle = True):
     if entrance == 1 and flatNum > FLATS_BY_ENTRANCE[0]:
         while FLATS_BY_ENTRANCE[entrance] <= flatNum:
             entrance += 1
+    
+    isOldStyle = entrance > 1 and flatNum < FLATS_BY_ENTRANCE[entrance - 2] or forceOldStyle
     #if we found num in "old" style, convert it to new style
-    if (entrance > 1 and flatNum < FLATS_BY_ENTRANCE[entrance - 2]) or forceOldStyle:
+    if isOldStyle:
         flatNum += FLATS_BY_ENTRANCE[entrance - 2] if entrance > 1 else 0        
-        flatNum += 1 #dont know why, but all flats num increased by one
+        if entrance == 1 or entrance == 2:
+            flatNum += 1 
+        elif entrance == 3 or entrance == 4:
+            flatNum -=1
     return entrance, flatNum
 
 def getFlatInfo(object):
@@ -80,7 +85,7 @@ def findFirst(a, f):
   return next((i for i in a if f(i)), None)
 
 def matchWithDomovoiData(user):    
-    #match by flat
+    #match by flat    
     domovoiUser = findFirst(allDomovoiUsers, lambda u: u['FlatNum'] == user['FlatNum'])
     #match by name
     if not domovoiUser:
